@@ -115,7 +115,7 @@ if __name__ == "__main__":
     GPIO.output(pin_relay_b, GPIO.HIGH) if use_relay == 'b' else GPIO.output(pin_relay_b, GPIO.LOW)
     GPIO.output(pin_relay_c, GPIO.HIGH) if use_relay == 'c' else GPIO.output(pin_relay_c, GPIO.LOW)
     GPIO.output(pin_LED, GPIO.LOW)
-    pin_LED_status = False
+    pin_LED_status = 0
 
     sleep(2)
     do_run()
