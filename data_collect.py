@@ -59,8 +59,10 @@ def write_file(start_time, bytes_data):
         with open(name, mode='wb') as file:
             file.write(bytes_data)
     except OSError as e:
-        # The SD card is full, shut down the system to prevent data corruption
-        system('sudo shutdown -h now')
+        if 'No space left on device' in str(e):
+            system('sudo shutdown -h now')
+        else:
+            raise e
     write_success += 1
     if write_success == 5:
         GPIO.output(pin_LED, GPIO.LOW)
