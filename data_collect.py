@@ -16,8 +16,8 @@ pin_overflow_buffer = 10
 pin_overflow_serial = 11
 use_relay = 'b'
 mins_before_write = 1
-save_path ='/home/pi/Desktop/DATA/' 
-write_success = False
+save_path ='/home/pi/Desktop/DATA/'
+write_success = 0
 bytes_before_write = 5400000*mins_before_write
 SERIAL_SPEED = 2000000
 cpu_id = ''
@@ -61,7 +61,9 @@ def write_file(start_time, bytes_data):
     except OSError as e:
         # The SD card is full, shut down the system to prevent data corruption
         system('sudo shutdown -h now')
-    write_success = True
+    write_success += 1
+    if write_success == 5:
+        GPIO.output(pin_LED, GPIO.LOW)
     print(f'[{datetime.datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")}] Data collect wrote file: {name}')
 
 
@@ -84,7 +86,7 @@ def do_run():
         bytes_available = ser.in_waiting
         s = ser.read(bytes_available)
         bytes_data += s
-        if write_success:
+        if (write_success > 0) and (write_success <= 5):
             if pin_LED_status == 1000:
                 GPIO.output(pin_LED, GPIO.LOW)
                 pin_LED_status = -1
@@ -114,5 +116,5 @@ if __name__ == "__main__":
     pin_LED_status = False
 
     sleep(2)
-    ba = do_run()
+    do_run()
 
