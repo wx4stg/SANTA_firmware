@@ -1,0 +1,15 @@
+[Unit]
+Description=Log BME280 temp, RH, pressure
+After=syslog.target
+
+[Service]
+ExecStart=/home/pi/micromamba/envs/slowant/bin/python3 temp_collect.py
+WorkingDirectory=/home/pi/Desktop/
+User=pi
+SyslogIdentifier=temp_logger
+Restart=always
+StandardError=append:/home/pi/Desktop/SA_log.out
+StandardOutput=append:/home/pi/Desktop/SA_log.out
+
+[Install]
+WantedBy=multi-user.target
