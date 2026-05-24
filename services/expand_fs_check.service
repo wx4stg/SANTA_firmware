@@ -1,0 +1,14 @@
+[Unit]
+Description=Check if pi needs filesystem expansion
+After=syslog.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/micromamba/envs/slowant/bin/python3 expand_fs_check.py
+ExecStartPost=/usr/bin/systemctl disable expand_fs_check.service
+WorkingDirectory=/home/pi/Desktop/
+User=root
+SyslogIdentifier=expand_fs_check
+
+[Install]
+WantedBy=multi-user.target

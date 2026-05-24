@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# Collects temperature, humidity, and pressure data from digital board's BME280 on WT-SANTA.
+# Created 22 May 2026 by Sam Gardner <samuel.gardner@ttu.edu>
+
 from collections import deque
 from datetime import datetime as dt, UTC
 from time import sleep
