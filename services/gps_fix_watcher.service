@@ -8,8 +8,8 @@ WorkingDirectory=/home/pi/Desktop/
 User=root
 SyslogIdentifier=gps_fix_watcher
 Restart=always
-StandardError=append:/home/pi/Desktop/SA_log.out
-StandardOutput=append:/home/pi/Desktop/SA_log.out
+StandardError=append:/home/pi/Desktop/GPS_log.out
+StandardOutput=append:/home/pi/Desktop/GPS_log.out
 
 [Install]
 WantedBy=multi-user.target
