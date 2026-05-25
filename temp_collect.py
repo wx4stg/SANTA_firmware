@@ -15,7 +15,7 @@ duration_to_collect = 86400
 
 if __name__ == '__main__':
     i2c = board.I2C()
-    bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c, address=118)
+    bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c, address=119)
     buffer_len = int(duration_to_collect/sampling_time)
     dt_buf = deque(maxlen=buffer_len)
     temp_buf = deque(maxlen=buffer_len)
