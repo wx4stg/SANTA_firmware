@@ -9,7 +9,7 @@ import RPi.GPIO as GPIO
 import subprocess
 import gpsd
 import atexit
-from atomicwrites import atomic_write
+from os import remove, rename, chmod
 
 def exit_handler():
     GPIO.output(26, GPIO.LOW)
@@ -23,8 +23,14 @@ current_time = datetime.datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S.%f')
 print(f'[{current_time}] Starting scheduled GPS fix...')
 
 
-with atomic_write('/home/pi/Desktop/last_gps.txt', overwrite=True) as f:
-    f.write('NO_FIX_2Donly_NaT')
+def write_gps_atomically(gps_str):
+    remove('/home/pi/Desktop/this_gps.txt')
+    with open('/home/pi/Desktop/this_gps.txt', 'w') as f:
+        f.write(gps_str)
+    chmod('/home/pi/Desktop/this_gps.txt', 0o666)
+    rename('/home/pi/Desktop/this_gps.txt', '/home/pi/Desktop/last_gps.txt')
+
+write_gps_atomically('NO_FIX_2Donly_NaT')
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(26, GPIO.OUT)
@@ -74,8 +80,7 @@ while True:
         print(f'[{current_time}] GPS packet: {lat}, {lon}, {alt}, {sentence_time_str}, updating clock')
         # This file needs to be written atomically since data_collect might be reading it at the same time
         # See https://github.com/wx4stg/Bruning_Slow_Antenna_Software/issues/3 for more details
-        with atomic_write('/home/pi/Desktop/last_gps.txt', overwrite=True) as f:
-            f.write(f'{lat:.6f}_{lon:.6f}_{alt}_{sentence_time_str}')
+        write_gps_atomically(f'{lat:.6f}_{lon:.6f}_{alt}_{sentence_time_str}')
         # Check to make sure chrony is using PPS as a source for time updates
         while True:
             chrony_task = subprocess.Popen(chrony_cmd, stdout=subprocess.PIPE)
