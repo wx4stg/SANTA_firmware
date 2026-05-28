@@ -9,7 +9,7 @@ import RPi.GPIO as GPIO
 import subprocess
 import gpsd
 import atexit
-from os import remove, rename, chmod
+from os import remove, rename, chmod, path
 
 def exit_handler():
     GPIO.output(26, GPIO.LOW)
@@ -24,7 +24,8 @@ print(f'[{current_time}] Starting scheduled GPS fix...')
 
 
 def write_gps_atomically(gps_str):
-    remove('/home/pi/Desktop/this_gps.txt')
+    if path.exists('/home/pi/Desktop/this_gps.txt'):
+        remove('/home/pi/Desktop/this_gps.txt')
     with open('/home/pi/Desktop/this_gps.txt', 'w') as f:
         f.write(gps_str)
     chmod('/home/pi/Desktop/this_gps.txt', 0o666)
