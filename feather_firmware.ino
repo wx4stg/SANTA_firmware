@@ -17,6 +17,9 @@ const uint8_t PIN_ADC_INT = 10;
 const uint8_t PIN_ADC_CS = 5;
 const uint8_t PIN_BUFFER_FULL = A2;
 const uint8_t PIN_SERIAL_FULL = A3;
+const uint8_t PIN_GPS_PPS = 6;
+const uint8_t PIN_ONBOARD_LED = 13;
+volatile bool GPS_PPS;
 byte b1;
 byte b2;
 byte b3;
@@ -56,14 +59,29 @@ void setup()
   pinMode(PIN_BUFFER_FULL, OUTPUT);
   pinMode(PIN_SERIAL_FULL, OUTPUT);
   pinMode(PIN_ADC_INT, INPUT_PULLUP);
+  pinMode(PIN_GPS_PPS, INPUT);
+  pinMode(PIN_ONBOARD_LED, OUTPUT);
   digitalWrite(PIN_ADC_CS, HIGH);
   digitalWrite(PIN_BUFFER_FULL, LOW);
   digitalWrite(PIN_SERIAL_FULL, LOW);
+  digitalWrite(PIN_ONBOARD_LED, LOW);
   
   delay(100);
   setAllRegisters();
   delay(100);
   attachInterrupt(digitalPinToInterrupt(PIN_ADC_INT), adcisr, FALLING);
+  attachInterrupt(digitalPinToInterrupt(PIN_GPS_PPS), gpsPpsChg, CHANGE);
+}
+
+void gpsPpsChg() {
+  // set global flag when GPS PPS is active
+  if (digitalRead(PIN_GPS_PPS) == HIGH) {
+    GPS_PPS = true;
+    digitalWrite(PIN_ONBOARD_LED, HIGH);
+  } else {
+    GPS_PPS = false;
+    digitalWrite(PIN_ONBOARD_LED, LOW);
+  }
 }
 
 void adcisr()
@@ -74,6 +92,7 @@ void adcisr()
   b1 = SPI.transfer(0x00);
   b2 = SPI.transfer(0x00);
   b3 = SPI.transfer(0x00);
+  b3 = bitWrite(b3, 0, GPS_PPS); // Set the LSB of b3 to GPS_PPS
   datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
   digitalWrite(PIN_ADC_CS, HIGH);
 }
