@@ -4,6 +4,7 @@
 typedef struct
 {
   byte sb;
+  byte ch_sgn;
   byte adc_b1;
   byte adc_b2;
   byte adc_b3;
@@ -17,6 +18,8 @@ const uint8_t PIN_ADC_INT = 10;
 const uint8_t PIN_ADC_CS = 5;
 const uint8_t PIN_BUFFER_FULL = A2;
 const uint8_t PIN_SERIAL_FULL = A3;
+const uint8_t PIN_ONBOARD_LED = 13;
+byte channel_and_sgn;
 byte b1;
 byte b2;
 byte b3;
@@ -28,19 +31,17 @@ void setAllRegisters()
   delay(5);
   SPI.transfer(0x46); // incremental write starting at 0x01
   SPI.transfer(0b01000011); // CONFIG0
-  //SPI.transfer(0b00000000); // CONFIG1 for 38.4kHZ
-  //SPI.transfer(0b00000100); // CONFIG1 for 19.2kHz
   SPI.transfer(0b00001000); // CONFIG1 for 9.6kHz
   SPI.transfer(0b10001011); // CONFIG2
-  SPI.transfer(0b11000000); // CONFIG3
+  SPI.transfer(0b11110000); // CONFIG3
   SPI.transfer(0b01110011); // IRQ
-  SPI.transfer(0b00000001); // MUX
-  SPI.transfer(0x000000); // SCAN
+  SPI.transfer(0b00000000); // MUX
+  SPI.transfer(0b000000000000001100000000); // SCAN
   SPI.transfer(0x000000); // TIMER
   SPI.transfer(0x000000); // OFFSETCAL
   SPI.transfer(0x800000); // GAINCAL
   SPI.transfer(0x900000); // RESERVED
-  SPI.transfer(0x30); // RESERVED
+  SPI.transfer(0x50); // RESERVED
   SPI.transfer(0xA5); // LOCK
   SPI.transfer(0x000F); // RESERVED
   delay(5);
@@ -56,9 +57,11 @@ void setup()
   pinMode(PIN_BUFFER_FULL, OUTPUT);
   pinMode(PIN_SERIAL_FULL, OUTPUT);
   pinMode(PIN_ADC_INT, INPUT_PULLUP);
+  pinMode(PIN_ONBOARD_LED, OUTPUT);
   digitalWrite(PIN_ADC_CS, HIGH);
   digitalWrite(PIN_BUFFER_FULL, LOW);
   digitalWrite(PIN_SERIAL_FULL, LOW);
+  digitalWrite(PIN_ONBOARD_LED, LOW);
   
   delay(100);
   setAllRegisters();
@@ -71,10 +74,12 @@ void adcisr()
   uint32_t adcus = micros();
   digitalWrite(PIN_ADC_CS, LOW);
   SPI.transfer(0x41); // Read ADC DATA
+  channel_and_sgn = SPI.transfer(0x00);
   b1 = SPI.transfer(0x00);
   b2 = SPI.transfer(0x00);
   b3 = SPI.transfer(0x00);
-  datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
+  b3 = bitWrite(b3, 0, GPS_PPS); // Set the LSB of b3 to GPS_PPS
+  datapackets.push(datapacket{0xBE, channel_and_sgn, b1, b2, b3, adcus, 0xEF});
   digitalWrite(PIN_ADC_CS, HIGH);
 }
 
@@ -85,11 +90,13 @@ void loop()
     // We have things to write and the place to write them
     datapacket dp = datapackets.pop();
     Serial.write((byte*)&dp.sb, 1);
+    Serial.write((byte*)&dp.ch_sgn, 1);
     Serial.write((byte*)&dp.adc_b1, 1);
     Serial.write((byte*)&dp.adc_b2, 1);
     Serial.write((byte*)&dp.adc_b3, 1);
     Serial.write((byte*)&dp.adc_pps_time, 4);
     Serial.write((byte*)&dp.eb, 1);
+    digitalWrite(PIN_ONBOARD_LED, HIGH);
   }
 
   if (datapackets.isFull())
