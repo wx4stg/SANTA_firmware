@@ -43,7 +43,7 @@ void setAllRegisters()
   SPI.transfer(0x000000); // OFFSETCAL
   SPI.transfer(0x800000); // GAINCAL
   SPI.transfer(0x900000); // RESERVED
-  SPI.transfer(0x30); // RESERVED
+  SPI.transfer(0x50); // RESERVED
   SPI.transfer(0xA5); // LOCK
   SPI.transfer(0x000F); // RESERVED
   delay(5);
