@@ -36,14 +36,14 @@ void setAllRegisters()
   SPI.transfer(0b11110000); // CONFIG3
   SPI.transfer(0b01110011); // IRQ
   SPI.transfer(0b00000000); // MUX
-  SPI.transfer(0b000000000000001100000000); // SCAN
-  SPI.transfer(0x000000); // TIMER
-  SPI.transfer(0x000000); // OFFSETCAL
-  SPI.transfer(0x800000); // GAINCAL
-  SPI.transfer(0x900000); // RESERVED
+  SPI.transfer(0x00); SPI.transfer(0x03); SPI.transfer(0x00); // SCAN
+  SPI.transfer(0x00); SPI.transfer(0x00); SPI.transfer(0x00); // TIMER
+  SPI.transfer(0x00); SPI.transfer(0x00); SPI.transfer(0x00); // OFFSETCAL
+  SPI.transfer(0x80); SPI.transfer(0x00); SPI.transfer(0x00); // GAINCAL
+  SPI.transfer(0x90); SPI.transfer(0x00); SPI.transfer(0x00); // RESERVED
   SPI.transfer(0x50); // RESERVED
   SPI.transfer(0xA5); // LOCK
-  SPI.transfer(0x000F); // RESERVED
+  SPI.transfer(0x00); SPI.transfer(0x0F); // RESERVED
   delay(5);
   digitalWrite(PIN_ADC_CS, HIGH);
 }
@@ -78,8 +78,12 @@ void adcisr()
   b1 = SPI.transfer(0x00);
   b2 = SPI.transfer(0x00);
   b3 = SPI.transfer(0x00);
-  b3 = bitWrite(b3, 0, GPS_PPS); // Set the LSB of b3 to GPS_PPS
   datapackets.push(datapacket{0xBE, channel_and_sgn, b1, b2, b3, adcus, 0xEF});
+  SPI.transfer(0x41); // Read ADC DATA
+  channel_and_sgn = SPI.transfer(0x00);
+  b1 = SPI.transfer(0x00);
+  b2 = SPI.transfer(0x00);
+  b3 = SPI.transfer(0x00);
   digitalWrite(PIN_ADC_CS, HIGH);
 }
 
