@@ -73,7 +73,9 @@ void adcisr()
   uint32_t adcus = micros();
   digitalWrite(PIN_ADC_CS, LOW);
   SPI.transfer(0x41); // Read ADC DATA
-  channel_and_sgn = SPI.transfer(0x00);
+  channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
+  // 0x80 is 1000 0000 (diff channel A aka lightning, no sgn extension bits)
+  // 0x90 is 1001 0000 (diff channel B aka PPS, no sgn extension bits)
   b1 = SPI.transfer(0x00);
   b2 = SPI.transfer(0x00);
   b3 = SPI.transfer(0x00);
