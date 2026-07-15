@@ -4,7 +4,6 @@
 typedef struct
 {
   byte sb;
-  byte ch_sgn;
   byte adc_b1;
   byte adc_b2;
   byte adc_b3;
@@ -19,7 +18,7 @@ const uint8_t PIN_ADC_CS = 5;
 const uint8_t PIN_BUFFER_FULL = A2;
 const uint8_t PIN_SERIAL_FULL = A3;
 const uint8_t PIN_ONBOARD_LED = 13;
-byte channel_and_sgn;
+volatile bool GPS_PPS;
 byte b1;
 byte b2;
 byte b3;
@@ -68,23 +67,59 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(PIN_ADC_INT), adcisr, FALLING);
 }
 
+
+void fetchData() {
+  SPI.transfer(0x41); // Read ADC DATA
+  byte channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
+  byte channel = channel_and_sgn & 0xF0;
+  bool isNegative = (channel_and_sgn & 0x0F) != 0;
+  byte dataB1 = SPI.transfer(0x00);
+  byte dataB2 = SPI.transfer(0x00);
+  byte dataB3 = SPI.transfer(0x00);
+
+  uint32_t raw24 = ((uint32_t)dataB1 << 16) | ((uint32_t)dataB2 << 8) | (uint32_t)dataB3;
+  // if data is negative, convert to signed 32-bit integer by sign-extending the 24-bit value
+  int32_t data = isNegative ? (int32_t)(raw24 | 0xFF000000UL) : (int32_t)raw24;
+  // if data is outside the range of a signed 24-bit integer, clip it
+  if (data > ((int32_t)0x7FFFFF)) {
+    data = 0x7FFFFF;
+  }
+  if (data < (int32_t)(-0x800000)) {
+    data = -0x800000;
+  }
+  if (channel == 0x80) { // 0x80 is 1000 (diff channel A aka lightning)
+    // set global variables for transfer to serial for storage.
+    b1 = (data >> 16) & 0xFF;
+    b2 = (data >> 8) & 0xFF;
+    b3 = data & 0xFF;
+  }
+  } elif (channel == 0x90) { // 0x90 is 1001 (diff channel B aka PPS)
+    // check if PPS is over half of VRef, set global flag.
+    if (data > 0x400000) {
+      // PPS is high
+      GPS_PPS = true;
+    } else {
+      // PPS is low
+      GPS_PPS = false;
+    }
+  }
+}
+
 void adcisr()
 {
   uint32_t adcus = micros();
   digitalWrite(PIN_ADC_CS, LOW);
-  SPI.transfer(0x41); // Read ADC DATA
-  channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
-  // 0x80 is 1000 0000 (diff channel A aka lightning, no sgn extension bits)
-  // 0x90 is 1001 0000 (diff channel B aka PPS, no sgn extension bits)
-  b1 = SPI.transfer(0x00);
-  b2 = SPI.transfer(0x00);
-  b3 = SPI.transfer(0x00);
-  datapackets.push(datapacket{0xBE, channel_and_sgn, b1, b2, b3, adcus, 0xEF});
-  SPI.transfer(0x41); // Read ADC DATA
-  channel_and_sgn = SPI.transfer(0x00);
-  b1 = SPI.transfer(0x00);
-  b2 = SPI.transfer(0x00);
-  b3 = SPI.transfer(0x00);
+  b1 = 0x00;
+  b2 = 0x00;
+  b3 = 0x00;
+  // Fetch data twice, once for lightning and once for GPS.
+  // We don't know what order these will occur, so just set globals.
+  fetchData();
+  fetchData();
+  
+  // interleave GPS with data by replacing least significant bit of b3 with GPS_PPS flag
+  b3 = bitWrite(b3, 0, GPS_PPS);
+  datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
   digitalWrite(PIN_ADC_CS, HIGH);
 }
 
