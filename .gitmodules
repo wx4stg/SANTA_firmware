@@ -1,0 +1,3 @@
+[submodule "slow_antenna_processing_scripts"]
+	path = slow_antenna_processing_scripts
+	url = https://github.com/WT-SANTA/slow_antenna_processing_scripts

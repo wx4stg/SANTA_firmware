@@ -7,6 +7,8 @@ import os.path
 from os import system
 import threading
 import atexit
+from slow_antenna_processing_scripts import sa_common as santa
+import numpy as np
 
 pin_relay_a = 5
 pin_relay_b = 6
@@ -20,6 +22,7 @@ save_path ='/home/pi/Desktop/DATA/'
 write_success = 0
 bytes_before_write = 5400000*mins_before_write
 SERIAL_SPEED = 2000000
+has_gps_embedded = None
 cpu_id = ''
 with open('/proc/cpuinfo', 'r') as f:
     cpu_id = f.readlines()[-2].replace('\n', '')[-8:]
@@ -39,19 +42,28 @@ atexit.register(exit_handler)
 
 
 def write_file(start_time, bytes_data):
-    global save_path
-    global cpu_id
-    global use_relay
-    global write_success
+    global save_path, cpu_id, use_relay, write_success, has_gps_embedded
+    if has_gps_embedded is None:
+        sa_arr = santa.rotate_SA_array(bytes_data)
+        sa_data = santa.decode_SA_array(sa_arr)
+        lowest_bit = (sa_data % 2)
+        total_changes_lsb = np.sum(np.abs(np.diff(lowest_bit)))
+        if total_changes_lsb < 10000: # the total number of changes is expected to be around 300000 for 60 seconds of data
+            has_gps_embedded = True
+        elif total_changes_lsb > 100000:
+            has_gps_embedded = False
     last_gps = 'NO_FIX_2Donly_NaT'
     if os.path.exists('/home/pi/Desktop/last_gps.txt'):
         with open('/home/pi/Desktop/last_gps.txt', 'r') as f:
             last_gps = f.read()
         last_gps_split = last_gps.split('_')
-        try:
-            last_gps_time_offset = (datetime.datetime.now(UTC) - datetime.datetime.strptime(last_gps_split[-1], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=UTC)).total_seconds()
-        except ValueError:
-            last_gps_time_offset = 0
+        if has_gps_embedded is True:
+            last_gps_time_offset = -1
+        else:
+            try:
+                last_gps_time_offset = (datetime.datetime.now(UTC) - datetime.datetime.strptime(last_gps_split[-1], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=UTC)).total_seconds()
+            except ValueError:
+                last_gps_time_offset = 0
         last_gps_split[-1] = f'{last_gps_time_offset:.2f}'
         last_gps = '_'.join(last_gps_split)
     name = os.path.join(save_path, f'{start_time.strftime("%Y%m%d_%H%M%S_%f")}_{last_gps}_{cpu_id}_{use_relay}.raw')
@@ -117,6 +129,6 @@ if __name__ == "__main__":
     GPIO.output(pin_LED, GPIO.LOW)
     pin_LED_status = 0
 
-    sleep(2)
+    sleep(2) # TODO: what if I remove this?
     do_run()
 
