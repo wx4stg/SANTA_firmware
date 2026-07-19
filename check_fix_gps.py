@@ -74,6 +74,8 @@ while True:
         lat = sentence.lat
         if sentence.mode == 3:
             alt = sentence.alt
+        else:
+            alt = '2Donly'
         # Grab the received time and convert to a python datetime object
         sentence_time_str = sentence.time[:-5]
         sentence_time = datetime.datetime.strptime(sentence_time_str, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=UTC)
