@@ -68,15 +68,28 @@ void setup()
 }
 
 
-void fetchData() {
+void adcisr()
+{
+  uint32_t adcus = micros();
+  digitalWrite(PIN_ADC_CS, LOW);
   SPI.transfer(0x41); // Read ADC DATA
+  digitalWrite(PIN_ADC_CS, HIGH);
   byte channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
   byte channel = channel_and_sgn & 0xF0;
-  bool isNegative = (channel_and_sgn & 0x0F) != 0;
+  byte sign = channel_and_sgn & 0x08;
+  if sign == 0x08 {
+    // data is negative
+    isNegative = true;
+  } else if sign == 0x00 {
+    // data is positive
+    isNegative = false;
+  } else {
+    // invalid sign bit, ignore this sample
+    return;
+  }
   byte dataB1 = SPI.transfer(0x00);
   byte dataB2 = SPI.transfer(0x00);
   byte dataB3 = SPI.transfer(0x00);
-
   uint32_t raw24 = ((uint32_t)dataB1 << 16) | ((uint32_t)dataB2 << 8) | (uint32_t)dataB3;
   // if data is negative, convert to signed 32-bit integer by sign-extending the 24-bit value
   int32_t data = isNegative ? (int32_t)(raw24 | 0xFF000000UL) : (int32_t)raw24;
@@ -92,6 +105,9 @@ void fetchData() {
     b1 = (data >> 16) & 0xFF;
     b2 = (data >> 8) & 0xFF;
     b3 = data & 0xFF;
+    // interleave GPS with data by replacing least significant bit of b3 with GPS_PPS flag
+    b3 = bitWrite(b3, 0, GPS_PPS);
+    datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
   } else if (channel == 0x90) { // 0x90 is 1001 (diff channel B aka PPS)
     // check if PPS is over half of VRef, set global flag.
     if (data > 0x400000) {
@@ -104,24 +120,6 @@ void fetchData() {
       digitalWrite(PIN_ONBOARD_LED, LOW);
     }
   }
-}
-
-void adcisr()
-{
-  uint32_t adcus = micros();
-  digitalWrite(PIN_ADC_CS, LOW);
-  b1 = 0x00;
-  b2 = 0x00;
-  b3 = 0x00;
-  // Fetch data twice, once for lightning and once for GPS.
-  // We don't know what order these will occur, so just set globals.
-  fetchData();
-  fetchData();
-  
-  // interleave GPS with data by replacing least significant bit of b3 with GPS_PPS flag
-  b3 = bitWrite(b3, 0, GPS_PPS);
-  datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
-  digitalWrite(PIN_ADC_CS, HIGH);
 }
 
 void loop()
