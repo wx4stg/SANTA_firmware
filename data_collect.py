@@ -44,8 +44,8 @@ atexit.register(exit_handler)
 def write_file(start_time, bytes_data):
     global save_path, cpu_id, use_relay, write_success, has_gps_embedded
     if has_gps_embedded is None:
-        sa_arr = santa.rotate_SA_array(bytes_data)
-        sa_data = santa.decode_SA_array(sa_arr)
+        sa_arr = santa.rotate_SA_array(np.frombuffer(bytes_data, dtype=np.uint8))
+        _, sa_data = santa.decode_SA_array(sa_arr)
         lowest_bit = (sa_data % 2)
         total_changes_lsb = np.sum(np.abs(np.diff(lowest_bit)))
         if total_changes_lsb < 10000: # the total number of changes is expected to be around 300000 for 60 seconds of data
@@ -117,6 +117,7 @@ def do_run():
 
 
 if __name__ == "__main__":
+    GPIO.setwarnings(False)
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(pin_relay_a, GPIO.OUT)
     GPIO.setup(pin_relay_b, GPIO.OUT)
@@ -129,6 +130,5 @@ if __name__ == "__main__":
     GPIO.output(pin_LED, GPIO.LOW)
     pin_LED_status = 0
 
-    sleep(2) # TODO: what if I remove this?
     do_run()
 
