@@ -1,5 +1,5 @@
 #include <SPI.h>
-#include <CircularBuffer.h>
+#include <CircularBuffer.hpp>
 
 typedef struct
 {
@@ -92,15 +92,16 @@ void fetchData() {
     b1 = (data >> 16) & 0xFF;
     b2 = (data >> 8) & 0xFF;
     b3 = data & 0xFF;
-  }
-  } elif (channel == 0x90) { // 0x90 is 1001 (diff channel B aka PPS)
+  } else if (channel == 0x90) { // 0x90 is 1001 (diff channel B aka PPS)
     // check if PPS is over half of VRef, set global flag.
     if (data > 0x400000) {
       // PPS is high
       GPS_PPS = true;
+      digitalWrite(PIN_ONBOARD_LED, HIGH);
     } else {
       // PPS is low
       GPS_PPS = false;
+      digitalWrite(PIN_ONBOARD_LED, LOW);
     }
   }
 }
@@ -130,13 +131,11 @@ void loop()
     // We have things to write and the place to write them
     datapacket dp = datapackets.pop();
     Serial.write((byte*)&dp.sb, 1);
-    Serial.write((byte*)&dp.ch_sgn, 1);
     Serial.write((byte*)&dp.adc_b1, 1);
     Serial.write((byte*)&dp.adc_b2, 1);
     Serial.write((byte*)&dp.adc_b3, 1);
     Serial.write((byte*)&dp.adc_pps_time, 4);
     Serial.write((byte*)&dp.eb, 1);
-    digitalWrite(PIN_ONBOARD_LED, HIGH);
   }
 
   if (datapackets.isFull())
