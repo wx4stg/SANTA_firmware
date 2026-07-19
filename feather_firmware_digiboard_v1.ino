@@ -38,11 +38,11 @@ void setAllRegisters()
   SPI.transfer(0b11000000); // CONFIG3
   SPI.transfer(0b01110011); // IRQ
   SPI.transfer(0b00000001); // MUX
-  SPI.transfer(0x000000); // SCAN
-  SPI.transfer(0x000000); // TIMER
-  SPI.transfer(0x000000); // OFFSETCAL
-  SPI.transfer(0x800000); // GAINCAL
-  SPI.transfer(0x900000); // RESERVED
+  SPI.transfer(0x00); SPI.transfer(0x00); SPI.transfer(0x00); // SCAN
+  SPI.transfer(0x00); SPI.transfer(0x00); SPI.transfer(0x00); // TIMER
+  SPI.transfer(0x00); SPI.transfer(0x00); SPI.transfer(0x00); // OFFSETCAL
+  SPI.transfer(0x80); SPI.transfer(0x00); SPI.transfer(0x00); // GAINCAL
+  SPI.transfer(0x90); SPI.transfer(0x00); SPI.transfer(0x00); // RESERVED
   SPI.transfer(0x50); // RESERVED
   SPI.transfer(0xA5); // LOCK
   SPI.transfer(0x000F); // RESERVED
