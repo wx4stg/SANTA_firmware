@@ -77,6 +77,7 @@ void adcisr()
   byte channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
   byte channel = channel_and_sgn & 0xF0;
   byte sign = channel_and_sgn & 0x08;
+  bool isNegative;
   if (sign == 0x08) {
     // data is negative
     isNegative = true;
