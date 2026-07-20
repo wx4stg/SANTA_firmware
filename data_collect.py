@@ -93,6 +93,13 @@ def do_run():
         # This is usually water intrusion, so shut down the system to prevent damage
         if 'No such file or directory' in str(e):
             system('sudo shutdown -h now')
+    if use_relay == 'a':
+        ser.write(bytes(np.int8(0)))
+    elif use_relay == 'b':
+        ser.write(bytes(np.int8(1)))
+    elif use_relay == 'c':
+        ser.write(bytes(np.int8(2)))
+    ser.write(bytes(np.int32(int(cpu_id, 16))))
     byte_count_since_last_write = 0
     bytes_data = bytearray()
     ser.flush()
