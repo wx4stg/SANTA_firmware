@@ -94,12 +94,12 @@ def do_run():
         if 'No such file or directory' in str(e):
             system('sudo shutdown -h now')
     if use_relay == 'a':
-        ser.write(np.int8(0).tobytes())
+        ser.write(np.uint8(0).tobytes())
     elif use_relay == 'b':
-        ser.write(np.int8(1).tobytes())
+        ser.write(np.uint8(1).tobytes())
     elif use_relay == 'c':
-        ser.write(np.int8(2).tobytes())
-    ser.write(np.int64(int(cpu_id, 16)).tobytes())
+        ser.write(np.uint8(2).tobytes())
+    ser.write(np.uint64(int(cpu_id, 16)).tobytes())
     byte_count_since_last_write = 0
     bytes_data = bytearray()
     ser.flush()
