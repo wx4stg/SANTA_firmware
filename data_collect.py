@@ -87,22 +87,18 @@ def do_run():
     start_time = datetime.datetime.now(UTC)
     print(f'[{start_time.strftime("%Y-%m-%d %H:%M:%S.%f")}] data_collect do_run()!')
     try:
-        ser = serial.Serial('/dev/ttyACM0', SERIAL_SPEED, timeout=1)
+        ser = serial.Serial('/dev/ttyACM0', SERIAL_SPEED, timeout=1, write_timeout=1)
     except Exception as e:
         # Feather has disconnected from the pi
         # This is usually water intrusion, so shut down the system to prevent damage
         if 'No such file or directory' in str(e):
             system('sudo shutdown -h now')
-    if use_relay == 'a':
-        ser.write(np.uint8(0).tobytes())
-    elif use_relay == 'b':
-        ser.write(np.uint8(1).tobytes())
-    elif use_relay == 'c':
-        ser.write(np.uint8(2).tobytes())
-    ser.write(np.uint64(int(cpu_id, 16)).tobytes())
+    ser.reset_input_buffer()
+    relay_value = {'a' : 0, 'b' : 1, 'c' : 2}[use_relay]
+    payload = np.uint8(relay_value).tobytes() + np.uint64(int(cpu_id, 16)).tobytes()
+    ser.write(payload)
     byte_count_since_last_write = 0
     bytes_data = bytearray()
-    ser.flush()
     while True:
         bytes_available = ser.in_waiting
         s = ser.read(bytes_available)
@@ -138,4 +134,3 @@ if __name__ == "__main__":
     pin_LED_status = 0
 
     do_run()
-
