@@ -4,6 +4,7 @@
 typedef struct
 {
   byte sb;
+  byte ch_and_sgn;
   byte adc_b1;
   byte adc_b2;
   byte adc_b3;
@@ -30,7 +31,7 @@ void setAllRegisters()
   delay(5);
   SPI.transfer(0x46); // incremental write starting at 0x01
   SPI.transfer(0b01000011); // CONFIG0
-  SPI.transfer(0b00001000); // CONFIG1 for 9.6kHz
+  SPI.transfer(0b00000100); // CONFIG1 for 9.6kHz
   SPI.transfer(0b10001011); // CONFIG2
   SPI.transfer(0b11110000); // CONFIG3
   SPI.transfer(0b01110011); // IRQ
@@ -73,8 +74,11 @@ void adcisr()
   uint32_t adcus = micros();
   digitalWrite(PIN_ADC_CS, LOW);
   SPI.transfer(0x41); // Read ADC DATA
-  digitalWrite(PIN_ADC_CS, HIGH);
   byte channel_and_sgn = SPI.transfer(0x00); // 0x80 (aka 128 aka 0b10000000) or 0x90 (aka 144 aka 0b10010000)
+  byte dataB1 = SPI.transfer(0x00);
+  byte dataB2 = SPI.transfer(0x00);
+  byte dataB3 = SPI.transfer(0x00);
+  digitalWrite(PIN_ADC_CS, HIGH);
   byte channel = channel_and_sgn & 0xF0;
   byte sign = channel_and_sgn & 0x08;
   bool isNegative;
@@ -88,9 +92,6 @@ void adcisr()
     // invalid sign bit, ignore this sample
     return;
   }
-  byte dataB1 = SPI.transfer(0x00);
-  byte dataB2 = SPI.transfer(0x00);
-  byte dataB3 = SPI.transfer(0x00);
   uint32_t raw24 = ((uint32_t)dataB1 << 16) | ((uint32_t)dataB2 << 8) | (uint32_t)dataB3;
   // if data is negative, convert to signed 32-bit integer by sign-extending the 24-bit value
   int32_t data = isNegative ? (int32_t)(raw24 | 0xFF000000UL) : (int32_t)raw24;
@@ -108,7 +109,7 @@ void adcisr()
     b3 = data & 0xFF;
     // interleave GPS with data by replacing least significant bit of b3 with GPS_PPS flag
     b3 = bitWrite(b3, 0, GPS_PPS);
-    datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
+    datapackets.push(datapacket{0xBE, channel_and_sgn, b1, b2, b3, adcus, 0xEF});
   } else if (channel == 0x90) { // 0x90 is 1001 (diff channel B aka PPS)
     // check if PPS is over half of VRef, set global flag.
     if (data > 0x400000) {
@@ -120,6 +121,10 @@ void adcisr()
       GPS_PPS = false;
       digitalWrite(PIN_ONBOARD_LED, LOW);
     }
+    b1 = (data >> 16) & 0xFF;
+    b2 = (data >> 8) & 0xFF;
+    b3 = data & 0xFF;
+    datapackets.push(datapacket{0xBE, channel_and_sgn, b1, b2, b3, adcus, 0xEF});
   }
 }
 
@@ -130,6 +135,7 @@ void loop()
     // We have things to write and the place to write them
     datapacket dp = datapackets.pop();
     Serial.write((byte*)&dp.sb, 1);
+    Serial.write((byte*)&dp.ch_and_sgn, 1);
     Serial.write((byte*)&dp.adc_b1, 1);
     Serial.write((byte*)&dp.adc_b2, 1);
     Serial.write((byte*)&dp.adc_b3, 1);
