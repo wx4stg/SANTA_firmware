@@ -23,12 +23,15 @@ const uint8_t PIN_GPS_PPS = 6;
 const uint8_t PIN_ONBOARD_LED = 13;
 volatile bool GPS_PPS;
 volatile uint64_t epoch = 0;
-uint8_t thing_to_transmit[20];
+uint8_t thing_to_transmit[29]; // 8 bytes epoch, 4 bytes lat, 4 bytes lon, 4 bytes alt, 1 byte use_relay, 8 bytes cpu_id
 volatile int32_t lat = 0.0;
 volatile int32_t lon = 0.0;
 volatile float alt = 0.0;
+volatile uint8_t use_relay = 0;
+volatile uint64_t cpu_id = 0;
 volatile uint16_t packets_since_last_pps = 0;
-volatile uint8_t nmea_transmit_bit = 160;
+volatile uint8_t nmea_transmit_bit = 200;
+volatile bool config_received = false;
 byte b1;
 byte b2;
 byte b3;
@@ -88,7 +91,9 @@ void gpsPpsChg() {
   // set global flag when GPS PPS is active
   if (digitalRead(PIN_GPS_PPS) == HIGH) {
     GPS_PPS = true;
-    digitalWrite(PIN_ONBOARD_LED, HIGH);
+    if (config_received) {
+      digitalWrite(PIN_ONBOARD_LED, HIGH);
+    }
   } else {
     GPS_PPS = false;
     digitalWrite(PIN_ONBOARD_LED, LOW);
@@ -113,10 +118,14 @@ void adcisr()
         int32_t tx_lat = lat;
         int32_t tx_lon = lon;
         float tx_alt = alt;
+        int8_t tx_use_relay = use_relay;
+        uint64_t tx_cpu_id = cpu_id;
         memcpy(thing_to_transmit, &tx_epoch, sizeof(tx_epoch));
         memcpy(thing_to_transmit+8, &tx_lat, sizeof(tx_lat));
         memcpy(thing_to_transmit+12, &tx_lon, sizeof(tx_lon));
         memcpy(thing_to_transmit+16, &tx_alt, sizeof(tx_alt));
+        memcpy(thing_to_transmit+20, &tx_use_relay, sizeof(tx_use_relay));
+        memcpy(thing_to_transmit+21, &tx_cpu_id, sizeof(tx_cpu_id));
         nmea_transmit_bit = 0; // Reset the bit index for transmitting epoch
       }
       if (packets_since_last_pps > 10) {
@@ -145,7 +154,7 @@ void adcisr()
 
 void loop()
 {
-  if ((!datapackets.isEmpty()) && (Serial.availableForWrite()> 10))
+  if ((config_received) && (!datapackets.isEmpty()) && (Serial.availableForWrite()> 10))
   {
     // We have things to write and the place to write them
     datapacket dp = datapackets.pop();
@@ -185,4 +194,14 @@ void loop()
       interrupts();
     }
   }
+  uint8_t rx_from_pi_buffer[9];
+  if (Serial.available() >= 9) {
+    // the first byte is the relay in use, the next 4 bytes are the cpu_id
+    Serial.readBytes((char*)rx_from_pi_buffer, 9);
+    use_relay = rx_from_pi_buffer[0];
+    uint64_t rx_cpu_id = 0;
+    memcpy(&rx_cpu_id, rx_from_pi_buffer+1, sizeof(rx_cpu_id));
+    cpu_id = rx_cpu_id;
+    config_received = true;
+  };
 }
