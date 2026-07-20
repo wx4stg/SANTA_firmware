@@ -23,9 +23,12 @@ const uint8_t PIN_GPS_PPS = 6;
 const uint8_t PIN_ONBOARD_LED = 13;
 volatile bool GPS_PPS;
 volatile uint64_t epoch = 0;
-volatile uint64_t tx_epoch = 0;
+uint8_t thing_to_transmit[20];
+volatile int32_t lat = 0.0;
+volatile int32_t lon = 0.0;
+volatile float alt = 0.0;
 volatile uint16_t packets_since_last_pps = 0;
-volatile uint8_t nmea_transmit_bit = 64;
+volatile uint8_t nmea_transmit_bit = 160;
 byte b1;
 byte b2;
 byte b3;
@@ -104,16 +107,32 @@ void adcisr()
   if (GPS_PPS) {
     packets_since_last_pps = 0; // Reset the counter on PPS
   } else {
-    if (packets_since_last_pps < 75) {
+    if (packets_since_last_pps < (sizeof(thing_to_transmit)*8 + 10 + 1)) { // Only transmit if we haven't transmitted all bits yet
       if (packets_since_last_pps == 0) {
-        tx_epoch = epoch+1; // Update the transmit epoch if we haven't seen a PPS in a while. Add 1 second because the PPS will have already passed.
-        nmea_transmit_bit = 64; // Reset the bit index for transmitting epoch
+        uint64_t tx_epoch = epoch+1; // Update the transmit epoch if we haven't seen a PPS in a while. Add 1 second because the PPS will have already passed.
+        int32_t tx_lat = lat;
+        int32_t tx_lon = lon;
+        float tx_alt = alt;
+        memcpy(thing_to_transmit, &tx_epoch, sizeof(tx_epoch));
+        memcpy(thing_to_transmit+8, &tx_lat, sizeof(tx_lat));
+        memcpy(thing_to_transmit+12, &tx_lon, sizeof(tx_lon));
+        memcpy(thing_to_transmit+16, &tx_alt, sizeof(tx_alt));
+        nmea_transmit_bit = 0; // Reset the bit index for transmitting epoch
       }
       if (packets_since_last_pps > 10) {
         // it's probably safe to start transmitting NMEA now
-        if (nmea_transmit_bit != 0) {
-          nmea_transmit_bit--;
-          b3 = bitWrite(b3, 0, bitRead(tx_epoch, nmea_transmit_bit)); // Set the LSB of b3 to the next bit of epoch
+        if (nmea_transmit_bit < sizeof(thing_to_transmit) * 8) {
+          uint8_t nmea_byte_idx = nmea_transmit_bit / 8;
+          uint8_t nmea_bit_idx = 7 - (nmea_transmit_bit % 8); // Transmit MSB first
+          b3 = bitWrite(b3, 0, bitRead(thing_to_transmit[nmea_byte_idx], nmea_bit_idx)); // Set the LSB of b3 to the next bit of epoch
+          nmea_transmit_bit++;
+        } else {
+          // Reset after transmitting all bits
+          epoch = 0; 
+          lat = 0.0;
+          lon = 0.0;
+          alt = 0.0;
+          thing_to_transmit[0] = 0;
         }
       }
       
@@ -160,6 +179,9 @@ void loop()
       uint64_t gps_epoch = mktime(&timeinfo); // calculate this before storing to minimize interrupt disabling time
       noInterrupts();
       epoch = gps_epoch;
+      lat = GPS.latitude_fixed;
+      lon = GPS.longitude_fixed;
+      alt = GPS.altitude;
       interrupts();
     }
   }
