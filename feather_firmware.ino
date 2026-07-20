@@ -1,5 +1,7 @@
 #include <SPI.h>
-#include <CircularBuffer.h>
+#include <CircularBuffer.hpp>
+#include <Adafruit_GPS.h>
+#include <time.h>
 
 typedef struct
 {
@@ -20,9 +22,14 @@ const uint8_t PIN_SERIAL_FULL = A3;
 const uint8_t PIN_GPS_PPS = 6;
 const uint8_t PIN_ONBOARD_LED = 13;
 volatile bool GPS_PPS;
+volatile uint64_t epoch = 0;
+volatile uint64_t tx_epoch = 0;
+volatile uint16_t packets_since_last_pps = 0;
+volatile uint8_t nmea_transmit_bit = 64;
 byte b1;
 byte b2;
 byte b3;
+Adafruit_GPS GPS(&Serial1);
 
 void setAllRegisters()
 {
@@ -53,6 +60,7 @@ void setAllRegisters()
 void setup()
 {
   Serial.begin(2000000);
+  GPS.begin(9600);
   SPI.begin();
   SPI.beginTransaction(SPISettings(20000000, MSBFIRST, SPI_MODE0));
   pinMode(PIN_ADC_CS, OUTPUT);
@@ -93,6 +101,25 @@ void adcisr()
   b2 = SPI.transfer(0x00);
   b3 = SPI.transfer(0x00);
   b3 = bitWrite(b3, 0, GPS_PPS); // Set the LSB of b3 to GPS_PPS
+  if (GPS_PPS) {
+    packets_since_last_pps = 0; // Reset the counter on PPS
+  } else {
+    if (packets_since_last_pps < 75) {
+      if (packets_since_last_pps == 0) {
+        tx_epoch = epoch+1; // Update the transmit epoch if we haven't seen a PPS in a while. Add 1 second because the PPS will have already passed.
+        nmea_transmit_bit = 64; // Reset the bit index for transmitting epoch
+      }
+      if (packets_since_last_pps > 10) {
+        // it's probably safe to start transmitting NMEA now
+        if (nmea_transmit_bit != 0) {
+          nmea_transmit_bit--;
+          b3 = bitWrite(b3, 0, bitRead(tx_epoch, nmea_transmit_bit)); // Set the LSB of b3 to the next bit of epoch
+        }
+      }
+      
+    }
+    packets_since_last_pps++;
+  }
   datapackets.push(datapacket{0xBE, b1, b2, b3, adcus, 0xEF});
   digitalWrite(PIN_ADC_CS, HIGH);
 }
@@ -118,5 +145,22 @@ void loop()
   if (Serial.availableForWrite() < 10)
   {
     digitalWrite(PIN_SERIAL_FULL, HIGH);
+  }
+  while (Serial1.available()) GPS.read();
+  if (GPS.newNMEAreceived()) {
+    if (GPS.parse(GPS.lastNMEA()) && GPS.fix) {
+      struct tm timeinfo = {};
+      timeinfo.tm_year = GPS.year + 100; // tm_year is years since 1900
+      timeinfo.tm_mon = GPS.month - 1; // tm_mon is 0-11
+      timeinfo.tm_mday = GPS.day;
+      timeinfo.tm_hour = GPS.hour;
+      timeinfo.tm_min = GPS.minute;
+      timeinfo.tm_sec = GPS.seconds;
+      timeinfo.tm_isdst = 0;
+      uint64_t gps_epoch = mktime(&timeinfo); // calculate this before storing to minimize interrupt disabling time
+      noInterrupts();
+      epoch = gps_epoch;
+      interrupts();
+    }
   }
 }
