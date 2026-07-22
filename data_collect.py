@@ -9,6 +9,7 @@ import threading
 import atexit
 from slow_antenna_processing_scripts import sa_common as santa
 import numpy as np
+import gzip
 
 pin_relay_a = 5
 pin_relay_b = 6
@@ -66,9 +67,9 @@ def write_file(start_time, bytes_data):
                 last_gps_time_offset = 0
         last_gps_split[-1] = f'{last_gps_time_offset:.2f}'
         last_gps = '_'.join(last_gps_split)
-    name = os.path.join(save_path, f'{start_time.strftime("%Y%m%d_%H%M%S_%f")}_{last_gps}_{cpu_id}_{use_relay}.raw')
+    name = os.path.join(save_path, f'{start_time.strftime("%Y%m%d_%H%M%S_%f")}_{last_gps}_{cpu_id}_{use_relay}.raw.gz')
     try:
-        with open(name, mode='wb') as file:
+        with gzip.open(name, mode='wb') as file:
             file.write(bytes_data)
     except OSError as e:
         if 'No space left on device' in str(e):
