@@ -19,7 +19,8 @@ atexit.register(exit_handler)
 
 # We need to wait a few seconds after a fresh boot for gpsd to figure its life out
 sleep(6)
-current_time = datetime.datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S.%f')
+script_start_time = datetime.datetime.now(UTC)
+current_time = script_start_time.strftime('%Y-%m-%d %H:%M:%S.%f')
 print(f'[{current_time}] Starting scheduled GPS fix...')
 
 
@@ -109,6 +110,7 @@ while True:
                             current_time = datetime.datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S.%f')
                             print(f'[{current_time}] ADC test startup not active, starting data collect!')
                             subprocess.run(start_data_cmd, stdout=subprocess.DEVNULL)
+                            script_start_time = datetime.datetime.now(UTC)
                             GPIO.output(26, GPIO.HIGH)
                             break
                         else:
@@ -123,5 +125,8 @@ while True:
                     sleep(0.25)
         else:
             # ADC data collect already running
-            GPIO.output(26, GPIO.HIGH)
+            if datetime.datetime.now(UTC) - script_start_time < datetime.timedelta(minutes=5):
+                GPIO.output(26, GPIO.HIGH)
+            else:
+                GPIO.output(26, GPIO.LOW) # If the system has been running for more than 5 minutes, turn off the GPS status light
     sleep(5)
