@@ -22,8 +22,9 @@ const uint8_t PIN_SERIAL_FULL = A3;
 const uint8_t PIN_GPS_PPS = 6;
 const uint8_t PIN_ONBOARD_LED = 13;
 volatile bool GPS_PPS;
+uint8_t thing_to_transmit[30]; // 8 bytes epoch, 1 byte micros difference, 4 bytes lat, 4 bytes lon, 4 bytes alt, 1 byte use_relay, 8 bytes cpu_id
 volatile uint64_t epoch = 0;
-uint8_t thing_to_transmit[29]; // 8 bytes epoch, 4 bytes lat, 4 bytes lon, 4 bytes alt, 1 byte use_relay, 8 bytes cpu_id
+volatile uint32_t micros_last_pps = 0;
 volatile int32_t lat = 0.0;
 volatile int32_t lon = 0.0;
 volatile float alt = 0.0;
@@ -89,9 +90,11 @@ void setup()
 
 void gpsPpsChg() {
   // set global flag when GPS PPS is active
+  uint32_t micros_pps = micros();
   if (digitalRead(PIN_GPS_PPS) == HIGH) {
     GPS_PPS = true;
     if (config_received) {
+      micros_last_pps = micros_pps;
       digitalWrite(PIN_ONBOARD_LED, HIGH);
     }
   } else {
@@ -115,17 +118,29 @@ void adcisr()
     if (packets_since_last_pps < (sizeof(thing_to_transmit)*8 + 10 + 1)) { // Only transmit if we haven't transmitted all bits yet
       if (packets_since_last_pps == 0) {
         uint64_t tx_epoch = epoch+1; // Update the transmit epoch if we haven't seen a PPS in a while. Add 1 second because the PPS will have already passed.
+        uint32_t micros_difference = adcus - micros_last_pps;
+        uint8_t micros_difference_tx = 0;
+        if (micros_difference > (4294967295 - 316)) {
+          micros_difference = 4294967295 - micros_difference;
+          micros_difference++;
+        }
+        if (micros_difference < 255) {
+          micros_difference_tx = (uint8_t) micros_difference;
+        } else {
+          tx_epoch = 0; // If micros difference is more than 255, then the time is way off, just skip this one
+        }
         int32_t tx_lat = lat;
         int32_t tx_lon = lon;
         float tx_alt = alt;
         int8_t tx_use_relay = use_relay;
         uint64_t tx_cpu_id = cpu_id;
         memcpy(thing_to_transmit, &tx_epoch, sizeof(tx_epoch));
-        memcpy(thing_to_transmit+8, &tx_lat, sizeof(tx_lat));
-        memcpy(thing_to_transmit+12, &tx_lon, sizeof(tx_lon));
-        memcpy(thing_to_transmit+16, &tx_alt, sizeof(tx_alt));
-        memcpy(thing_to_transmit+20, &tx_use_relay, sizeof(tx_use_relay));
-        memcpy(thing_to_transmit+21, &tx_cpu_id, sizeof(tx_cpu_id));
+        memcpy(thing_to_transmit+8, &micros_difference_tx, sizeof(micros_difference_tx));
+        memcpy(thing_to_transmit+9, &tx_lat, sizeof(tx_lat));
+        memcpy(thing_to_transmit+13, &tx_lon, sizeof(tx_lon));
+        memcpy(thing_to_transmit+17, &tx_alt, sizeof(tx_alt));
+        memcpy(thing_to_transmit+21, &tx_use_relay, sizeof(tx_use_relay));
+        memcpy(thing_to_transmit+22, &tx_cpu_id, sizeof(tx_cpu_id));
         nmea_transmit_bit = 0; // Reset the bit index for transmitting epoch
       }
       if (packets_since_last_pps > 10) {
@@ -141,6 +156,7 @@ void adcisr()
           lat = 0.0;
           lon = 0.0;
           alt = 0.0;
+          micros_last_pps = 0;
           thing_to_transmit[0] = 0;
         }
       }
