@@ -49,9 +49,9 @@ def write_file(start_time, bytes_data):
         _, sa_data = santa.decode_SA_array(sa_arr)
         lowest_bit = (sa_data % 2)
         total_changes_lsb = np.sum(np.abs(np.diff(lowest_bit)))
-        if total_changes_lsb < 10000: # the total number of changes is expected to be around 300000 for 60 seconds of data
+        if total_changes_lsb < (bytes_before_write // 10 // 2 // 3 // 9): # the total number of changes is expected to be around 300000 for 60 seconds of data
             has_gps_embedded = True
-        elif total_changes_lsb > 100000:
+        elif total_changes_lsb > (bytes_before_write // 10 // 2 // 3):
             has_gps_embedded = False
     last_gps = 'NO_FIX_2Donly_NaT'
     if os.path.exists('/home/pi/Desktop/last_gps.txt'):
