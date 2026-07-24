@@ -25,6 +25,7 @@ volatile bool GPS_PPS;
 uint8_t thing_to_transmit[30]; // 8 bytes epoch, 1 byte micros difference, 4 bytes lat, 4 bytes lon, 4 bytes alt, 1 byte use_relay, 8 bytes cpu_id
 volatile uint64_t epoch = 0;
 volatile uint32_t micros_last_pps = 0;
+uint8_t micros_difference_tx = 0;
 volatile int32_t lat = 0.0;
 volatile int32_t lon = 0.0;
 volatile float alt = 0.0;
@@ -113,22 +114,24 @@ void adcisr()
   b3 = SPI.transfer(0x00);
   b3 = bitWrite(b3, 0, GPS_PPS); // Set the LSB of b3 to GPS_PPS
   if (GPS_PPS) {
+    if (packets_since_last_pps != 0) {
+      // This is the first ADC reading after the PPS, so we can calculate the time difference between the PPS and the ADC reading
+      uint32_t micros_difference = adcus - micros_last_pps;
+      if (micros_difference > (4294967295 - 316)) {
+        micros_difference = 4294967295 - micros_difference;
+        micros_difference++;
+      }
+      if (micros_difference < 255) {
+        micros_difference_tx = (uint8_t) micros_difference;
+      } else {
+        epoch = 0; // If micros difference is more than 255, then the time is way off, just skip this one
+      }
+    }
     packets_since_last_pps = 0; // Reset the counter on PPS
   } else {
     if (packets_since_last_pps < (sizeof(thing_to_transmit)*8 + 10 + 1)) { // Only transmit if we haven't transmitted all bits yet
       if (packets_since_last_pps == 0) {
         uint64_t tx_epoch = epoch+1; // Update the transmit epoch if we haven't seen a PPS in a while. Add 1 second because the PPS will have already passed.
-        uint32_t micros_difference = adcus - micros_last_pps;
-        uint8_t micros_difference_tx = 0;
-        if (micros_difference > (4294967295 - 316)) {
-          micros_difference = 4294967295 - micros_difference;
-          micros_difference++;
-        }
-        if (micros_difference < 255) {
-          micros_difference_tx = (uint8_t) micros_difference;
-        } else {
-          tx_epoch = 0; // If micros difference is more than 255, then the time is way off, just skip this one
-        }
         int32_t tx_lat = lat;
         int32_t tx_lon = lon;
         float tx_alt = alt;
