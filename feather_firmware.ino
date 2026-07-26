@@ -176,7 +176,7 @@ void loop()
   if ((config_received) && (!datapackets.isEmpty()) && (Serial.availableForWrite()> 10))
   {
     // We have things to write and the place to write them
-    datapacket dp = datapackets.pop();
+    datapacket dp = datapackets.shift();
     Serial.write((byte*)&dp.sb, 1);
     Serial.write((byte*)&dp.adc_b1, 1);
     Serial.write((byte*)&dp.adc_b2, 1);
